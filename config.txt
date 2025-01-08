@@ -1,0 +1,10 @@
+window 1024 768
+rectangle rect1 100 100 3 2 255 0 0 80 50
+rectangle rect2 300 200 -2 3 0 255 0 120 60
+rectangle rect3 600 400 2 -3 0 0 255 100 70
+rectangle rect4 800 600 -3 -2 255 255 0 60 40
+circle circ1 150 150 2 3 255 0 255 30
+circle circ2 400 350 -3 2 128 128 128 50
+circle circ3 700 500 1 -2 0 255 255 40
+circle circ4 900 200 -2 1 255 128 0 25
+circle circ5 500 600 2 2 0 128 255 35
