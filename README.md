@@ -1,6 +1,8 @@
-# 衝突検知プロジェクト (Collision Detection Project)
 
-このプロジェクトは、SFMLライブラリを使用して図形の描画と衝突検知を行うシンプルなプログラムです。
+# SFML Collision Detection Simulation
+
+## Overview
+This project demonstrates a dynamic simulation of moving shapes with realistic collision detection and response, built using the **SFML (Simple and Fast Multimedia Library)**. The program allows shapes (rectangles and circles) to move across the screen, interact with each other, and bounce off window boundaries, showcasing advanced collision handling.
 
 
 ## Demo Video
@@ -8,53 +10,128 @@
 
 ---
 
-## 🔧 必要な環境
-- **C++**: C++20対応のコンパイラ
-- **SFML**: 2.5.1以上
-- フォントファイル (例: `arial.ttf`)
-- 設定ファイル (例: `config.txt`)
+## Features
+- **Dynamic Movement:** Shapes move with configurable speeds and directions.
+- **Collision Detection:**
+  - Shapes reverse their speed and direction upon collision.
+  - Speed increases dynamically during collisions to create realistic bounce effects.
+- **Boundary Reflection:**
+  - Shapes bounce off the window boundaries while maintaining correct positions.
+- **Text Alignment:** Shape names dynamically follow their respective shapes during movement.
+- **Customizable Configuration:**
+  - The `config.txt` file allows users to define shape properties such as size, color, position, and speed.
 
 ---
 
-## 📄 使用方法
-1. **必要なライブラリをインストール**  
-   - SFMLライブラリをインストールしてください。
+## Collision Algorithm Explained
+This project uses an **advanced collision detection algorithm** to handle shape interactions realistically. Here’s how it works:
 
-2. **設定ファイルを準備**  
-   `config.txt` ファイルを以下の形式で作成してください:
-   ```
+### Challenges with Basic Collision
+In simple collision detection:
+1. When two shapes collide, their speeds and directions are reversed.
+2. However, because shapes typically remain intersecting in the next frame, they repeatedly "collide" in subsequent frames.
+3. This leads to the shapes getting stuck in a loop of moving closer and farther, resulting in unnatural behavior.
+
+### Solution: Storing Speed States
+To solve this, the algorithm:
+1. **Tracks Collision States:**  
+   Each shape has a `CollisionState` that stores:
+   - Whether the shape is currently in a collision (`inCollision`).
+   - The original speed of the shape before the collision (`originalXSpeed` and `originalYSpeed`).
+
+2. **Adjusts Speed Dynamically:**  
+   - On collision:
+     - The shape’s speed is reversed and slightly increased (e.g., `*=-1.3`) to create a realistic bounce effect.
+   - After separation:
+     - The shape’s speed is reset to the original values (but reversed in direction) to prevent sticking.
+
+3. **Boundary Reflection Handling:**  
+   - The position is adjusted to ensure shapes never go out of bounds.
+   - Collision states are managed independently for boundary collisions.
+
+### Why This Algorithm is Advanced
+- **Avoids Sticking:**  
+  Shapes do not get stuck together because the algorithm resets their speeds after separation.
+- **Dynamic Interaction:**  
+  The speed increase during collisions creates realistic bouncing behavior.
+- **Independent Collision Management:**  
+  Boundary collisions are handled separately, ensuring smooth interactions.
+
+---
+
+## How to Use
+1. **Install SFML:**  
+   Download and set up SFML from [SFML's official website](https://www.sfml-dev.org/).
+
+2. **Prepare Configuration File:**  
+   Edit `config.txt` to define your shapes:
+   ```txt
    window 800 600
-   rectangle Rect1 100 100 2 2 255 0 0 100 50
-   circle Circle1 300 300 -3 1 0 255 0 30
-   ```
-   - `window`: ウィンドウの幅と高さ
-   - `rectangle`: 長方形の名前、位置、速度、色、幅、高さ
-   - `circle`: 円の名前、位置、速度、色、半径
-
-3. **コンパイルと実行**  
-   以下のコマンドでプログラムをコンパイル・実行します:
-   ```bash
-   g++ -std=c++20 -I<インクルードパス> -L<ライブラリパス> -lsfml-graphics -lsfml-window -lsfml-system main.cpp -o collision
-   ./collision
+   rectangle Rect1 100 100 2 3 255 0 0 50 50
+   circle Circle1 300 200 -3 1 0 255 0 30
    ```
 
----
-
-## 🎮 機能
-- 図形（長方形と円）の描画
-- 図形の移動と反射（ウィンドウの境界で反射）
-- 図形同士の衝突検知
-- 衝突時に図形の色を一時的に赤色に変更
-- 図形の名前を図形の中心に表示
+3. **Run the Program:**  
+   Compile and execute the program to see the shapes in action.
 
 ---
 
-## 🛠️ ファイル構成
-- `main.cpp`: メインプログラム
-- `config.txt`: 図形やウィンドウ設定を記載した設定ファイル
-- `arial.ttf`: テキスト描画用フォントファイル
+## Configuration File Details
+The `config.txt` file defines the simulation settings:
+- **Window Dimensions:**  
+  ```
+  window <width> <height>
+  ```
+- **Shape Definitions:**  
+  ```
+  rectangle <name> <x> <y> <xSpeed> <ySpeed> <R> <G> <B> <width> <height>
+  circle <name> <x> <y> <xSpeed> <ySpeed> <R> <G> <B> <radius>
+  ```
 
 ---
 
-## 📌 注意
-- SFMLライブラリのインクルードパスとライブラリパスを正確に設定してください。
+## Demo Video
+[![Watch the video](https://img.youtube.com/vi/YourVideoID/0.jpg)](https://www.youtube.com/watch?v=YourVideoID)
+
+Click the image above to watch a demo of the project in action.
+
+---
+
+## Code Example
+Here’s an example of the collision handling logic:
+
+```cpp
+if (bounds1.intersects(bounds2)) {
+    isColliding = true;
+
+    if (!state.inCollision) {
+        state.originalXSpeed = config.xSpeed;
+        state.originalYSpeed = config.ySpeed;
+
+        config.xSpeed *= -1.3f;
+        config.ySpeed *= -1.3f;
+
+        shape->setFillColor(sf::Color::Red);
+    }
+    state.inCollision = true;
+}
+
+// Reset speed when no longer colliding
+if (!isColliding && state.inCollision) {
+    config.xSpeed = -state.originalXSpeed;
+    config.ySpeed = -state.originalYSpeed;
+    state.inCollision = false;
+}
+```
+
+---
+
+## Technical Details
+- **Language:** C++
+- **Library:** SFML (Simple and Fast Multimedia Library)
+- **Customizable Input:** Via `config.txt`
+
+---
+
+## Acknowledgements
+This project showcases the power and flexibility of SFML for multimedia applications, along with advanced collision detection logic for interactive simulations.
