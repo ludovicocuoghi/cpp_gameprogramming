@@ -4,87 +4,96 @@
 #include <sstream>
 #include <vector>
 #include <string>
-#include <memory> // std::unique_ptr用
+#include <memory> // For std::unique_ptr
 
-// 各図形の設定を格納する構造体
+// Structure to store configuration for each shape
 struct ShapeConfig {
-    std::string type;    // "rectangle" または "circle"
-    std::string name;    // 図形の名前
-    sf::Color color;     // 図形の色 (RGB)
-    float x, y;          // 初期位置
-    float xSpeed, ySpeed;// x方向とy方向の速度
-    float width, height; // 長方形の幅と高さ
-    float radius;        // 円の半径
+    std::string type;    // "rectangle" or "circle"
+    std::string name;    // Name of the shape
+    sf::Color color;     // Color of the shape (RGB)
+    float x, y;          // Initial position
+    float xSpeed, ySpeed;// Speed in x and y directions
+    float width, height; // Width and height for rectangles
+    float radius;        // Radius for circles
+};
+
+// Structure to track collision states for each shape
+struct CollisionState {
+    bool inCollision;        // True if the shape is in a collision
+    float originalXSpeed;    // Original horizontal speed before collision
+    float originalYSpeed;    // Original vertical speed before collision
 };
 
 int main() {
-    // 設定ファイルを開く
+    // Open configuration file
     std::ifstream configFile("config.txt");
     if (!configFile.is_open()) {
-        std::cerr << "config.txtを開けませんでした。\n";
+        std::cerr << "Could not open config.txt.\n";
         return -1;
     }
 
-    // 図形設定とウィンドウサイズを読み込む
+    // Parse window size and shape configurations
     int windowWidth = 800, windowHeight = 600;
     std::vector<ShapeConfig> shapes;
-
     std::string line;
+
     while (std::getline(configFile, line)) {
         std::istringstream iss(line);
         std::string type;
         iss >> type;
 
         if (type == "window") {
-            iss >> windowWidth >> windowHeight; // ウィンドウの幅と高さを設定
+            // Set window size
+            iss >> windowWidth >> windowHeight;
         } else if (type == "rectangle" || type == "circle") {
             ShapeConfig shape;
             shape.type = type;
 
-            // 名前、位置、速度、色を読み込む
+            // Read name, position, speed, and color
             iss >> shape.name >> shape.x >> shape.y >> shape.xSpeed >> shape.ySpeed;
             int r, g, b;
             iss >> r >> g >> b;
             shape.color = sf::Color(r, g, b);
 
-            // 長方形か円かによって特有のサイズを読み込む
+            // Read size based on shape type
             if (type == "rectangle") {
                 iss >> shape.width >> shape.height;
             } else if (type == "circle") {
                 iss >> shape.radius;
             }
-
-            shapes.push_back(shape); // 設定をリストに追加
+            shapes.push_back(shape);
         }
     }
 
-    // フォントを読み込む
+    // Load font for text labels
     sf::Font font;
     if (!font.loadFromFile("arial.ttf")) {
-        std::cerr << "フォントを読み込めませんでした。\n";
+        std::cerr << "Could not load font file.\n";
         return -1;
     }
 
-    // ウィンドウを作成
+    // Create the SFML window
     sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "Collision Detection");
     window.setFramerateLimit(60);
 
-    // 図形とテキストを作成
+    // Create SFML shapes and their text labels
     std::vector<std::unique_ptr<sf::Shape>> sfmlShapes;
     std::vector<sf::Text> sfmlTexts;
 
     for (const auto& shape : shapes) {
+        // Create text for the shape's label
         sf::Text text;
         text.setFont(font);
-        text.setString(shape.name); // 図形の名前をテキストに設定
+        text.setString(shape.name);
         text.setFillColor(sf::Color::White);
         text.setCharacterSize(24);
 
+        // Create the shape based on its type
         if (shape.type == "rectangle") {
             auto rect = std::make_unique<sf::RectangleShape>(sf::Vector2f(shape.width, shape.height));
-            rect->setPosition(shape.x, shape.y); // 初期位置を設定
-            rect->setFillColor(shape.color);    // 色を設定
-            sfmlShapes.push_back(std::move(rect)); // 図形をリストに追加
+            rect->setPosition(shape.x, shape.y);
+            rect->setFillColor(shape.color);
+            sfmlShapes.push_back(std::move(rect));
         } else if (shape.type == "circle") {
             auto circ = std::make_unique<sf::CircleShape>(shape.radius);
             circ->setPosition(shape.x, shape.y);
@@ -92,76 +101,108 @@ int main() {
             sfmlShapes.push_back(std::move(circ));
         }
 
-        // テキストを図形の中心に配置
+        // Center the text on the shape
         auto bounds = sfmlShapes.back()->getGlobalBounds();
         auto textBounds = text.getLocalBounds();
-        float centerX = bounds.left + bounds.width / 2.f - textBounds.width / 2.f;
-        float centerY = bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top;
-        text.setPosition(centerX, centerY);
-
+        text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
+                         bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
         sfmlTexts.push_back(text);
     }
 
-    // メインループ
+    // Initialize collision states for all shapes
+    std::vector<CollisionState> collisionStates(shapes.size(), {false, 0.f, 0.f});
+    for (size_t i = 0; i < shapes.size(); ++i) {
+        collisionStates[i].originalXSpeed = shapes[i].xSpeed;
+        collisionStates[i].originalYSpeed = shapes[i].ySpeed;
+    }
+
+    // Main game loop
     while (window.isOpen()) {
-        // イベント処理
+        // Process window events
         sf::Event event;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed)
                 window.close();
         }
 
-        // 図形の更新と衝突処理
-        for (size_t i = 0; i < sfmlShapes.size(); ++i) {
-            auto& shape = sfmlShapes[i];
-            auto& config = shapes[i];
+    for (size_t i = 0; i < sfmlShapes.size(); ++i) {
+        auto& shape = sfmlShapes[i];
+        auto& config = shapes[i];
+        auto& state = collisionStates[i];
 
-            // 速度に基づいて位置を更新
-            sf::Vector2f position = shape->getPosition();
-            position.x += config.xSpeed;
-            position.y += config.ySpeed;
+        // Update position based on speed
+        sf::Vector2f position = shape->getPosition();
+        position.x += config.xSpeed;
+        position.y += config.ySpeed;
 
-            // ウィンドウの境界で反射
-            if (position.x < 0 || position.x + config.width > window.getSize().x) {
-                config.xSpeed *= -1;
-            }
-            if (position.y < 0 || position.y + config.height > window.getSize().y) {
-                config.ySpeed *= -1;
-            }
-            shape->setPosition(position);
+        // Reflect at window boundaries
+        if (position.x < 0 || position.x + (config.type == "rectangle" ? config.width : 2 * config.radius) > window.getSize().x) {
+            config.xSpeed *= -1;
+        }
+        if (position.y < 0 || position.y + (config.type == "rectangle" ? config.height : 2 * config.radius) > window.getSize().y) {
+            config.ySpeed *= -1;
+        }
+        shape->setPosition(position);
 
-            // 色を元の色にリセット
-            shape->setFillColor(config.color);
+        // Reset shape color to its original
+        shape->setFillColor(config.color);
 
-            // テキスト位置を図形の中心に再設定
-            auto bounds = shape->getGlobalBounds();
-            auto textBounds = sfmlTexts[i].getLocalBounds();
-            float centerX = bounds.left + bounds.width / 2.f - textBounds.width / 2.f;
-            float centerY = bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top;
-            sfmlTexts[i].setPosition(centerX, centerY);
+        // **Update the text position to center it on the shape**
+        auto bounds = shape->getGlobalBounds();
+        auto& text = sfmlTexts[i];
+        auto textBounds = text.getLocalBounds();
+        text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
+                        bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
 
-            // 他の図形との衝突をチェック
-            for (size_t j = 0; j < sfmlShapes.size(); ++j) {
-                if (i == j) continue;
+        // Check for collisions
+        bool isColliding = false;
+        for (size_t j = 0; j < sfmlShapes.size(); ++j) {
+            if (i == j) continue; // Skip self-collision
 
-                auto bounds1 = shape->getGlobalBounds();
-                auto bounds2 = sfmlShapes[j]->getGlobalBounds();
+            auto bounds1 = shape->getGlobalBounds();
+            auto bounds2 = sfmlShapes[j]->getGlobalBounds();
 
-                // 衝突検知
-                if (bounds1.intersects(bounds2)) {
-                    config.xSpeed *= -1; // 速度を反転
-                    config.ySpeed *= -1;
-                    shapes[j].xSpeed *= -1;
-                    shapes[j].ySpeed *= -1;
+            if (bounds1.intersects(bounds2)) {
+                isColliding = true;
 
-                    // 衝突時に色を一時的に赤に変更
+                auto& otherConfig = shapes[j];
+                auto& otherState = collisionStates[j];
+
+                if (!state.inCollision) {
+                    // Save original speeds for both shapes
+                    state.originalXSpeed = config.xSpeed;
+                    state.originalYSpeed = config.ySpeed;
+
+                    otherState.originalXSpeed = otherConfig.xSpeed;
+                    otherState.originalYSpeed = otherConfig.ySpeed;
+
+                    // Adjust speeds for both shapes
+                    config.xSpeed *= -1.3f;
+                    config.ySpeed *= -1.3f;
+
+                    otherConfig.xSpeed *= -1.3f;
+                    otherConfig.ySpeed *= -1.3f;
+
+                    // Change colors for both shapes
                     shape->setFillColor(sf::Color::Red);
                     sfmlShapes[j]->setFillColor(sf::Color::Red);
                 }
+
+                // Mark both shapes as in collision
+                state.inCollision = true;
+                otherState.inCollision = true;
             }
         }
 
-        // 描画処理
+        // Reset speed when no longer colliding
+        if (!isColliding && state.inCollision) {
+            config.xSpeed = -state.originalXSpeed;
+            config.ySpeed = -state.originalYSpeed;
+            state.inCollision = false;
+        }
+    }
+
+        // Render shapes and labels
         window.clear(sf::Color::Black);
         for (const auto& shape : sfmlShapes) {
             window.draw(*shape);
