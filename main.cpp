@@ -116,7 +116,6 @@ int main() {
         collisionStates[i].originalYSpeed = shapes[i].ySpeed;
     }
 
-    // Main game loop
     while (window.isOpen()) {
         // Process window events
         sf::Event event;
@@ -125,82 +124,97 @@ int main() {
                 window.close();
         }
 
-    for (size_t i = 0; i < sfmlShapes.size(); ++i) {
-        auto& shape = sfmlShapes[i];
-        auto& config = shapes[i];
-        auto& state = collisionStates[i];
+        // Update shapes and check for collisions
+        for (size_t i = 0; i < sfmlShapes.size(); ++i) {
+            auto& shape = sfmlShapes[i];
+            auto& config = shapes[i];
+            auto& state = collisionStates[i];
 
-        // Update position based on speed
-        sf::Vector2f position = shape->getPosition();
-        position.x += config.xSpeed;
-        position.y += config.ySpeed;
+            // Update position based on speed
+            sf::Vector2f position = shape->getPosition();
+            position.x += config.xSpeed;
+            position.y += config.ySpeed;
 
-        // Reflect at window boundaries
-        if (position.x < 0 || position.x + (config.type == "rectangle" ? config.width : 2 * config.radius) > window.getSize().x) {
-            config.xSpeed *= -1;
-        }
-        if (position.y < 0 || position.y + (config.type == "rectangle" ? config.height : 2 * config.radius) > window.getSize().y) {
-            config.ySpeed *= -1;
-        }
-        shape->setPosition(position);
-
-        // Reset shape color to its original
-        shape->setFillColor(config.color);
-
-        // **Update the text position to center it on the shape**
-        auto bounds = shape->getGlobalBounds();
-        auto& text = sfmlTexts[i];
-        auto textBounds = text.getLocalBounds();
-        text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
-                        bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
-
-        // Check for collisions
-        bool isColliding = false;
-        for (size_t j = 0; j < sfmlShapes.size(); ++j) {
-            if (i == j) continue; // Skip self-collision
-
-            auto bounds1 = shape->getGlobalBounds();
-            auto bounds2 = sfmlShapes[j]->getGlobalBounds();
-
-            if (bounds1.intersects(bounds2)) {
-                isColliding = true;
-
-                auto& otherConfig = shapes[j];
-                auto& otherState = collisionStates[j];
-
-                if (!state.inCollision) {
-                    // Save original speeds for both shapes
-                    state.originalXSpeed = config.xSpeed;
-                    state.originalYSpeed = config.ySpeed;
-
-                    otherState.originalXSpeed = otherConfig.xSpeed;
-                    otherState.originalYSpeed = otherConfig.ySpeed;
-
-                    // Adjust speeds for both shapes
-                    config.xSpeed *= -1.3f;
-                    config.ySpeed *= -1.3f;
-
-                    otherConfig.xSpeed *= -1.3f;
-                    otherConfig.ySpeed *= -1.3f;
-
-                    // Change colors for both shapes
-                    shape->setFillColor(sf::Color::Red);
-                    sfmlShapes[j]->setFillColor(sf::Color::Red);
-                }
-
-                // Mark both shapes as in collision
-                state.inCollision = true;
-                otherState.inCollision = true;
+            // Reflect at window boundaries
+            if (position.x < 0) {
+                position.x = 0;
+                config.xSpeed *= -1; // Reverse horizontal speed
             }
-        }
+            if (position.x + (config.type == "rectangle" ? config.width : 2 * config.radius) > window.getSize().x) {
+                position.x = window.getSize().x - (config.type == "rectangle" ? config.width : 2 * config.radius);
+                config.xSpeed *= -1; // Reverse horizontal speed
+            }
+            if (position.y < 0) {
+                position.y = 0;
+                config.ySpeed *= -1; // Reverse vertical speed
+            }
+            if (position.y + (config.type == "rectangle" ? config.height : 2 * config.radius) > window.getSize().y) {
+                position.y = window.getSize().y - (config.type == "rectangle" ? config.height : 2 * config.radius);
+                config.ySpeed *= -1; // Reverse vertical speed
+            }
 
-        // Reset speed when no longer colliding
-        if (!isColliding && state.inCollision) {
-            config.xSpeed = -state.originalXSpeed;
-            config.ySpeed = -state.originalYSpeed;
-            state.inCollision = false;
+            // Apply updated position to the shape
+            shape->setPosition(position);
+
+            // Reset shape color to its original
+            shape->setFillColor(config.color);
+
+            // Update text position to follow the shape
+            auto bounds = shape->getGlobalBounds();
+            auto& text = sfmlTexts[i];
+            auto textBounds = text.getLocalBounds();
+            text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
+                            bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
+
+            // Check for collisions with other shapes
+            bool isColliding = false;
+            for (size_t j = 0; j < sfmlShapes.size(); ++j) {
+                if (i == j) continue; // Skip self-collision
+
+                auto bounds1 = shape->getGlobalBounds();
+                auto bounds2 = sfmlShapes[j]->getGlobalBounds();
+
+                if (bounds1.intersects(bounds2)) {
+                    isColliding = true;
+
+                    auto& otherConfig = shapes[j];
+                    auto& otherState = collisionStates[j];
+
+                    if (!state.inCollision) {
+                        // Save original speeds for both shapes
+                        state.originalXSpeed = config.xSpeed;
+                        state.originalYSpeed = config.ySpeed;
+
+                        otherState.originalXSpeed = otherConfig.xSpeed;
+                        otherState.originalYSpeed = otherConfig.ySpeed;
+
+                        // Adjust speeds for both shapes
+                        config.xSpeed *= -1.3f;
+                        config.ySpeed *= -1.3f;
+
+                        otherConfig.xSpeed *= -1.3f;
+                        otherConfig.ySpeed *= -1.3f;
+
+                        // Change colors for both shapes
+                        shape->setFillColor(sf::Color::Red);
+                        sfmlShapes[j]->setFillColor(sf::Color::Red);
+                    }
+
+                    // Mark both shapes as in collision
+                    state.inCollision = true;
+                    otherState.inCollision = true;
+                }
+            }
+
+            // Reset speed when no longer colliding
+            if (!isColliding && state.inCollision) {
+                config.xSpeed = -state.originalXSpeed;
+                config.ySpeed = -state.originalYSpeed;
+                state.inCollision = false;
+            }
+
+            state.inCollision = isColliding;
         }
-    }
 
         // Render shapes and labels
         window.clear(sf::Color::Black);
@@ -212,6 +226,5 @@ int main() {
         }
         window.display();
     }
-
     return 0;
 }
