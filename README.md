@@ -1,137 +1,142 @@
 
-# SFML Collision Detection Simulation
+# SFML Shape Collision & GUI Control
 
-## Overview
-This project demonstrates a dynamic simulation of moving shapes with realistic collision detection and response, built using the **SFML (Simple and Fast Multimedia Library)**. The program allows shapes (rectangles and circles) to move across the screen, interact with each other, and bounce off window boundaries, showcasing advanced collision handling.
-
-
-## Demo Video
-[VIDEO DEMO](https://www.youtube.com/watch?v=rqzfr4WHKeI)
+This project is a **real-time collision simulation** using **SFML (Simple and Fast Multimedia Library)** with a graphical user interface powered by **ImGui** and **ImGui-SFML**. It allows users to manage shapes, control their properties dynamically (such as size, speed, and color), and visualize advanced collision behaviors.
 
 ---
 
 ## Features
-- **Dynamic Movement:** Shapes move with configurable speeds and directions.
-- **Collision Detection:**
-  - Shapes reverse their speed and direction upon collision.
-  - Speed increases dynamically during collisions to create realistic bounce effects.
-- **Boundary Reflection:**
-  - Shapes bounce off the window boundaries while maintaining correct positions.
-- **Text Alignment:** Shape names dynamically follow their respective shapes during movement.
-- **Customizable Configuration:**
-  - The `config.txt` file allows users to define shape properties such as size, color, position, and speed.
+
+### 1. **Collision Detection**
+- Implements real-time collision detection between shapes.
+- Shapes "bounce" upon collision with boundaries or other shapes.
+- Speed increases dynamically on collision (multiplied by -1.3) to simulate energetic bounces.
+- When collisions end, shapes revert to their original speed but with an inverted direction to maintain realistic motion.
+
+### 2. **ImGui Integration**
+- Shapes can be customized dynamically via a GUI.
+- The GUI uses ImGui-SFML to allow:
+  - **Shape Selection:** A dropdown menu to select shapes.
+  - **Size Adjustment:** Adjust the width/height (for rectangles) or radius (for circles).
+  - **Color Customization:** RGB sliders to choose a custom color for the shape.
+  - **Speed Control:** Modify the x and y velocities in real-time.
+
+### 3. **Color Normalization**
+- Colors are normalized to the [0.0, 1.0] range for the GUI and denormalized back to [0, 255] for SFML.
+- This ensures accurate color representation and smooth transitions when modifying colors in the GUI.
+
+### 4. **Boundary Collision**
+- Shapes detect and respond to window boundaries, reversing their direction when hitting edges.
+- Shape positions are clamped to avoid sticking to the edges.
 
 ---
 
-## Collision Algorithm Explained
-This project uses an **advanced collision detection algorithm** to handle shape interactions realistically. Here’s how it works:
+## Installation & Setup
 
-### Challenges with Basic Collision
-In simple collision detection:
-1. When two shapes collide, their speeds and directions are reversed.
-2. However, because shapes typically remain intersecting in the next frame, they repeatedly "collide" in subsequent frames.
-3. This leads to the shapes getting stuck in a loop of moving closer and farther, resulting in unnatural behavior.
+### Prerequisites
+- **C++ Compiler** supporting C++20 or later.
+- **SFML 2.6.x** installed via Homebrew or any other method.
+- **ImGui** and **ImGui-SFML** for GUI integration.
 
-### Solution: Storing Speed States
-To solve this, the algorithm:
-1. **Tracks Collision States:**  
-   Each shape has a `CollisionState` that stores:
-   - Whether the shape is currently in a collision (`inCollision`).
-   - The original speed of the shape before the collision (`originalXSpeed` and `originalYSpeed`).
+### Installing Dependencies
+1. Install SFML 2.6.x (if not already installed):
+   ```bash
+   brew install sfml@2
+   ```
+2. Clone the required libraries:
+   ```bash
+   git clone https://github.com/ocornut/imgui.git
+   cd imgui
+   git checkout v1.89.8
+   cd ..
 
-2. **Adjusts Speed Dynamically:**  
-   - On collision:
-     - The shape’s speed is reversed and slightly increased (e.g., `*=-1.3`) to create a realistic bounce effect.
-   - After separation:
-     - The shape’s speed is reset to the original values (but reversed in direction) to prevent sticking.
-
-3. **Boundary Reflection Handling:**  
-   - The position is adjusted to ensure shapes never go out of bounds.
-   - Collision states are managed independently for boundary collisions.
-
-### Why This Algorithm is Advanced
-- **Avoids Sticking:**  
-  Shapes do not get stuck together because the algorithm resets their speeds after separation.
-- **Dynamic Interaction:**  
-  The speed increase during collisions creates realistic bouncing behavior.
-- **Independent Collision Management:**  
-  Boundary collisions are handled separately, ensuring smooth interactions.
-
----
-
-## How to Use
-1. **Install SFML:**  
-   Download and set up SFML from [SFML's official website](https://www.sfml-dev.org/).
-
-2. **Prepare Configuration File:**  
-   Edit `config.txt` to define your shapes:
-   ```txt
-   window 800 600
-   rectangle Rect1 100 100 2 3 255 0 0 50 50
-   circle Circle1 300 200 -3 1 0 255 0 30
+   git clone https://github.com/eliasdaler/imgui-sfml.git
+   cd imgui-sfml
+   git checkout v2.6
+   cd ..
    ```
 
-3. **Run the Program:**  
-   Compile and execute the program to see the shapes in action.
+### Building the Project
+1. Update the `Makefile` with the correct include and library paths:
+   ```makefile
+   CXX = g++
+   CXXFLAGS = -std=c++20 -I/opt/homebrew/opt/sfml@2/include -Iimgui -Iimgui-sfml
+   LDFLAGS = -L/opt/homebrew/opt/sfml@2/lib -lsfml-graphics -lsfml-window -lsfml-system -framework OpenGL
+
+   SRC = main.cpp imgui/imgui.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp imgui-sfml/imgui-SFML.cpp
+   BIN = bin/sfml_app
+
+   all: $(BIN)
+
+   $(BIN): $(SRC)
+       @mkdir -p bin
+       $(CXX) $(CXXFLAGS) $(SRC) -o $(BIN) $(LDFLAGS)
+
+   clean:
+       rm -rf bin
+   ```
+2. Build and run the project:
+   ```bash
+   make clean
+   make
+   ./bin/sfml_app
+   ```
 
 ---
 
-## Configuration File Details
-The `config.txt` file defines the simulation settings:
-- **Window Dimensions:**  
-  ```
-  window <width> <height>
-  ```
-- **Shape Definitions:**  
-  ```
-  rectangle <name> <x> <y> <xSpeed> <ySpeed> <R> <G> <B> <width> <height>
-  circle <name> <x> <y> <xSpeed> <ySpeed> <R> <G> <B> <radius>
-  ```
+## Usage
+
+### GUI Controls
+- **Shape Selection:** Select a shape from the dropdown to modify its properties.
+- **Color Editing:** Use the RGB sliders to adjust the shape's color in real-time.
+- **Size Adjustment:** Change the width and height for rectangles or radius for circles.
+- **Speed Adjustment:** Modify the x and y velocities of shapes.
+
+### Collision System
+- Shapes detect collisions with both boundaries and other shapes.
+- Upon collision:
+  - The speed is dynamically adjusted (multiplied by -1.3).
+  - Shapes change color to red during the collision.
+  - Once the collision ends, shapes revert to their original speed with the opposite direction.
 
 ---
 
-## Demo Video
-[![Watch the video](https://img.youtube.com/vi/YourVideoID/0.jpg)](https://www.youtube.com/watch?v=YourVideoID)
+## Code Overview
 
-Click the image above to watch a demo of the project in action.
+### Core Files
+- **`main.cpp`:** Contains the core logic for shape movement, collision detection, and GUI integration.
+- **`Makefile`:** Used to compile the project with all dependencies.
 
----
+### Key Components
+1. **Collision Logic:**
+   - Handles shape-boundary and shape-shape collisions.
+   - Ensures shapes bounce with realistic speed changes.
+   - Collision states are tracked to prevent speed accumulation.
 
-## Code Example
-Here’s an example of the collision handling logic:
+2. **GUI Integration:**
+   - Uses ImGui to create a dynamic interface for shape customization.
+   - Dropdown menus and sliders simplify interaction.
 
-```cpp
-if (bounds1.intersects(bounds2)) {
-    isColliding = true;
-
-    if (!state.inCollision) {
-        state.originalXSpeed = config.xSpeed;
-        state.originalYSpeed = config.ySpeed;
-
-        config.xSpeed *= -1.3f;
-        config.ySpeed *= -1.3f;
-
-        shape->setFillColor(sf::Color::Red);
-    }
-    state.inCollision = true;
-}
-
-// Reset speed when no longer colliding
-if (!isColliding && state.inCollision) {
-    config.xSpeed = -state.originalXSpeed;
-    config.ySpeed = -state.originalYSpeed;
-    state.inCollision = false;
-}
-```
+3. **Color Normalization:**
+   - Converts SFML colors to normalized floats for ImGui.
+   - Denormalizes the floats back to integers for SFML rendering.
 
 ---
 
-## Technical Details
-- **Language:** C++
-- **Library:** SFML (Simple and Fast Multimedia Library)
-- **Customizable Input:** Via `config.txt`
+## Known Issues
+- Ensure the SFML and ImGui-SFML versions are compatible (currently using SFML 2.6.x and ImGui-SFML 2.6).
+- Avoid using extremely high velocities to prevent shapes from skipping collision detection.
 
 ---
 
-## Acknowledgements
-This project showcases the power and flexibility of SFML for multimedia applications, along with advanced collision detection logic for interactive simulations.
+## Future Enhancements
+- Add support for new shape types (e.g., triangles).
+- Include global controls to pause/resume all shapes or reset the simulation.
+- Improve GUI layout to accommodate large numbers of shapes.
+
+---
+
+## Credits
+- **SFML:** [Simple and Fast Multimedia Library](https://www.sfml-dev.org/)
+- **ImGui:** [Dear ImGui](https://github.com/ocornut/imgui)
+- **ImGui-SFML:** [ImGui-SFML Integration](https://github.com/eliasdaler/imgui-sfml)

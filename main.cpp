@@ -1,4 +1,6 @@
 #include <SFML/Graphics.hpp>
+#include <imgui.h>
+#include <imgui-SFML.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -43,8 +45,7 @@ int main() {
         iss >> type;
 
         if (type == "window") {
-            // Set window size
-            iss >> windowWidth >> windowHeight;
+            iss >> windowWidth >> windowHeight; // Set window size
         } else if (type == "rectangle" || type == "circle") {
             ShapeConfig shape;
             shape.type = type;
@@ -76,19 +77,20 @@ int main() {
     sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "Collision Detection");
     window.setFramerateLimit(60);
 
+    // Initialize ImGui-SFML
+    [[maybe_unused]] bool imguiInitialized = ImGui::SFML::Init(window);
+
     // Create SFML shapes and their text labels
     std::vector<std::unique_ptr<sf::Shape>> sfmlShapes;
     std::vector<sf::Text> sfmlTexts;
 
     for (const auto& shape : shapes) {
-        // Create text for the shape's label
         sf::Text text;
         text.setFont(font);
         text.setString(shape.name);
         text.setFillColor(sf::Color::White);
         text.setCharacterSize(24);
 
-        // Create the shape based on its type
         if (shape.type == "rectangle") {
             auto rect = std::make_unique<sf::RectangleShape>(sf::Vector2f(shape.width, shape.height));
             rect->setPosition(shape.x, shape.y);
@@ -101,11 +103,6 @@ int main() {
             sfmlShapes.push_back(std::move(circ));
         }
 
-        // Center the text on the shape
-        auto bounds = sfmlShapes.back()->getGlobalBounds();
-        auto textBounds = text.getLocalBounds();
-        text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
-                         bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
         sfmlTexts.push_back(text);
     }
 
@@ -116,107 +113,135 @@ int main() {
         collisionStates[i].originalYSpeed = shapes[i].ySpeed;
     }
 
+    // Selected shape index for the GUI
+    int selectedShapeIndex = -1;
+
+    sf::Clock clock;
     while (window.isOpen()) {
         // Process window events
         sf::Event event;
         while (window.pollEvent(event)) {
+            ImGui::SFML::ProcessEvent(event); // Pass events to ImGui
             if (event.type == sf::Event::Closed)
                 window.close();
         }
 
-        // Update shapes and check for collisions
+        ImGui::SFML::Update(window, clock.restart()); // Update ImGui
+
+        // GUI: Dropdown for selecting a shape
+        ImGui::Begin("Shape Editor");
+        if (ImGui::BeginCombo("Select Shape", selectedShapeIndex >= 0 ? shapes[selectedShapeIndex].name.c_str() : "None")) {
+            for (size_t i = 0; i < shapes.size(); ++i) {
+                if (ImGui::Selectable(shapes[i].name.c_str(), selectedShapeIndex == (int)i)) {
+                    selectedShapeIndex = (int)i;
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if (selectedShapeIndex >= 0 && selectedShapeIndex < (int)shapes.size()) {
+            auto& selectedConfig = shapes[selectedShapeIndex];
+            auto& selectedShape = sfmlShapes[selectedShapeIndex];
+
+            ImGui::SliderFloat("X Speed", &selectedConfig.xSpeed, -10.0f, 10.0f);
+            ImGui::SliderFloat("Y Speed", &selectedConfig.ySpeed, -10.0f, 10.0f);
+            if (selectedConfig.type == "rectangle") {
+                ImGui::SliderFloat("Width", &selectedConfig.width, 10.0f, 200.0f);
+                ImGui::SliderFloat("Height", &selectedConfig.height, 10.0f, 200.0f);
+                dynamic_cast<sf::RectangleShape*>(selectedShape.get())->setSize(
+                    sf::Vector2f(selectedConfig.width, selectedConfig.height));
+            } else if (selectedConfig.type == "circle") {
+                ImGui::SliderFloat("Radius", &selectedConfig.radius, 5.0f, 100.0f);
+                dynamic_cast<sf::CircleShape*>(selectedShape.get())->setRadius(selectedConfig.radius);
+            }
+            // Temporary color array for ImGui
+            float tempColor[3] = {
+                selectedConfig.color.r / 255.0f, // Normalize the color to 0.0 - 1.0 range
+                selectedConfig.color.g / 255.0f,
+                selectedConfig.color.b / 255.0f
+            };
+
+            // Use ImGui to edit the color
+            if (ImGui::ColorEdit3("Color", tempColor)) {
+                // De-normalize back to 0-255 range and update the shape color
+                selectedConfig.color.r = static_cast<sf::Uint8>(tempColor[0] * 255.0f);
+                selectedConfig.color.g = static_cast<sf::Uint8>(tempColor[1] * 255.0f);
+                selectedConfig.color.b = static_cast<sf::Uint8>(tempColor[2] * 255.0f);
+                selectedShape->setFillColor(selectedConfig.color);
+            }
+        }
+        ImGui::End();
+
+        // Update shapes and handle collisions
         for (size_t i = 0; i < sfmlShapes.size(); ++i) {
             auto& shape = sfmlShapes[i];
             auto& config = shapes[i];
             auto& state = collisionStates[i];
 
-            // Update position based on speed
             sf::Vector2f position = shape->getPosition();
             position.x += config.xSpeed;
             position.y += config.ySpeed;
 
-            // Reflect at window boundaries
-            if (position.x < 0) {
-                position.x = 0;
-                config.xSpeed *= -1; // Reverse horizontal speed
+            if (position.x < 0 || position.x + (config.type == "rectangle" ? config.width : 2 * config.radius) > window.getSize().x) {
+                config.xSpeed *= -1;
+                position.x = std::clamp(position.x, 0.f, window.getSize().x - (config.type == "rectangle" ? config.width : 2 * config.radius));
             }
-            if (position.x + (config.type == "rectangle" ? config.width : 2 * config.radius) > window.getSize().x) {
-                position.x = window.getSize().x - (config.type == "rectangle" ? config.width : 2 * config.radius);
-                config.xSpeed *= -1; // Reverse horizontal speed
+            if (position.y < 0 || position.y + (config.type == "rectangle" ? config.height : 2 * config.radius) > window.getSize().y) {
+                config.ySpeed *= -1;
+                position.y = std::clamp(position.y, 0.f, window.getSize().y - (config.type == "rectangle" ? config.height : 2 * config.radius));
             }
-            if (position.y < 0) {
-                position.y = 0;
-                config.ySpeed *= -1; // Reverse vertical speed
-            }
-            if (position.y + (config.type == "rectangle" ? config.height : 2 * config.radius) > window.getSize().y) {
-                position.y = window.getSize().y - (config.type == "rectangle" ? config.height : 2 * config.radius);
-                config.ySpeed *= -1; // Reverse vertical speed
-            }
-
-            // Apply updated position to the shape
             shape->setPosition(position);
 
-            // Reset shape color to its original
-            shape->setFillColor(config.color);
-
-            // Update text position to follow the shape
+            // Update the text position to follow the shape
             auto bounds = shape->getGlobalBounds();
             auto& text = sfmlTexts[i];
             auto textBounds = text.getLocalBounds();
             text.setPosition(bounds.left + bounds.width / 2.f - textBounds.width / 2.f,
-                            bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
+                             bounds.top + bounds.height / 2.f - textBounds.height / 2.f - textBounds.top);
 
-            // Check for collisions with other shapes
             bool isColliding = false;
             for (size_t j = 0; j < sfmlShapes.size(); ++j) {
-                if (i == j) continue; // Skip self-collision
-
+                if (i == j) continue;
                 auto bounds1 = shape->getGlobalBounds();
                 auto bounds2 = sfmlShapes[j]->getGlobalBounds();
 
                 if (bounds1.intersects(bounds2)) {
                     isColliding = true;
-
                     auto& otherConfig = shapes[j];
                     auto& otherState = collisionStates[j];
 
                     if (!state.inCollision) {
-                        // Save original speeds for both shapes
                         state.originalXSpeed = config.xSpeed;
                         state.originalYSpeed = config.ySpeed;
 
                         otherState.originalXSpeed = otherConfig.xSpeed;
                         otherState.originalYSpeed = otherConfig.ySpeed;
 
-                        // Adjust speeds for both shapes
                         config.xSpeed *= -1.3f;
                         config.ySpeed *= -1.3f;
 
                         otherConfig.xSpeed *= -1.3f;
                         otherConfig.ySpeed *= -1.3f;
 
-                        // Change colors for both shapes
                         shape->setFillColor(sf::Color::Red);
                         sfmlShapes[j]->setFillColor(sf::Color::Red);
                     }
 
-                    // Mark both shapes as in collision
                     state.inCollision = true;
                     otherState.inCollision = true;
                 }
             }
 
-            // Reset speed when no longer colliding
             if (!isColliding && state.inCollision) {
                 config.xSpeed = -state.originalXSpeed;
                 config.ySpeed = -state.originalYSpeed;
                 state.inCollision = false;
+                shape->setFillColor(config.color);
             }
-
             state.inCollision = isColliding;
         }
 
-        // Render shapes and labels
+        // Render everything
         window.clear(sf::Color::Black);
         for (const auto& shape : sfmlShapes) {
             window.draw(*shape);
@@ -224,7 +249,10 @@ int main() {
         for (const auto& text : sfmlTexts) {
             window.draw(text);
         }
+        ImGui::SFML::Render(window);
         window.display();
     }
+
+    ImGui::SFML::Shutdown();
     return 0;
 }
